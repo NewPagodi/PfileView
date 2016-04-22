@@ -249,10 +249,24 @@ void pfileFrame::ProcessFile(const wxString& filename)
     int NumBoundingBoxes   = ReadInt(&myfile);
     int NormIndexTableFlag = ReadInt(&myfile);
 
-    unsigned int needed_size = 64+64+12*NumVertices+12*NumNormals+12*NumUnknown1
-    +8*NumTexCs+4 * NumVertexColors +4 * NumPolys+4 * NumEdges
-    +24 * NumPolys+24 * NumUnknown2+3 * NumUnknown3+56*NumGroups
-    +24 * NumBoundingBoxes+4 * NumVertices;
+    unsigned int needed_size
+    =64
+    +64
+    +12*NumVertices
+    +12*NumNormals
+    +12*NumUnknown1
+    +8*NumTexCs
+    +4*NumVertexColors
+    +4*NumPolys
+    +4*NumEdges
+    +24*NumPolys
+    +24*NumUnknown2
+    +3*NumUnknown3
+    +100*NumHundreds
+    +56*NumGroups
+    +4 //There seems to be an extra 4 bytes between the groups table and the rest
+    +24*NumBoundingBoxes
+    +4*NumVertices;
 
     if(filesize<needed_size)
     {
@@ -431,38 +445,18 @@ void pfileFrame::ProcessFile(const wxString& filename)
         DataGrid->Collapse(pgp);
     }
 
-    //Since we don't know the size of Hundreds, before continuing, we
-    //need to do some calculations:
-
-    s.Clear();
-    wxFileOffset t = myfile.Tell();
-    std::vector<unsigned char> the_rest;
-
-    while(!myfile.Eof())
-    {
-        ReadChar(&myfile,&red);
-        the_rest.push_back(red);
-    }
-    int bytes_in_hundreds = (int)(the_rest.size() - 56*NumGroups - 24*NumBoundingBoxes -4*NumVertices );
-
-    s << "decimal\thex\n";
-    for(int i=0;i<bytes_in_hundreds;i++)
-    {
-        s<< (int) the_rest[i] << "\t"<< wxString::Format("%#02x", the_rest[i]) <<"\n";
-    }
-    the_rest.clear();
-
-    wxFileOffset sought = myfile.Seek(t+bytes_in_hundreds);
-    if(sought==wxInvalidOffset)
-    {
-        //We should never get here, but just in case:
-        SetStatusText("Unable to read rest of file");
-        myfile.Close();
-        return;
-    }
-
     pgp = AddCategory( "Hundreds", &myfile );
-    DataGrid->Append( new npDialogProperty("Bytes",wxPG_LABEL,wxString::Format("%d bytes...",bytes_in_hundreds),s) );
+    for(int i=0;i<NumHundreds;i++)
+    {
+        s.Clear();
+        s << "decimal\thex\n";
+        for(int i=0;i<100;i++)
+        {
+            ReadChar( &myfile, &c );
+            s<< (int)c << "\t"<< wxString::Format("%#02x", c) <<"\n";
+        }
+        DataGrid->Append( new npDialogProperty("Bytes",wxPG_LABEL,wxString::Format("%d bytes...",100*NumHundreds),s) );
+    }
     DataGrid->Collapse(pgp);
 
     pgp = AddCategory( "Groups", &myfile );
@@ -486,6 +480,10 @@ void pfileFrame::ProcessFile(const wxString& filename)
     }
     DataGrid->Collapse(pgp);
 
+    //There seems to be an inexplicable 4 bytes between the groups tables
+    //and the remaining 2 tables:
+    ReadInt(&myfile);
+
     pgp = AddCategory( "Bounding boxes", &myfile );
     for(int i=0;i<NumBoundingBoxes;i++)
     {
@@ -505,6 +503,82 @@ void pfileFrame::ProcessFile(const wxString& filename)
         AddInt(pgp,wxString::Format("vertex %d",i),ReadInt(&myfile));
     }
     DataGrid->Collapse(pgp);
+
+
+    //Since we don't know the size of Hundreds, before continuing, we
+    //need to do some calculations:
+
+//    s.Clear();
+//    wxFileOffset t = myfile.Tell();
+//    std::vector<unsigned char> the_rest;
+//
+//    while(!myfile.Eof())
+//    {
+//        ReadChar(&myfile,&red);
+//        the_rest.push_back(red);
+//    }
+//    int bytes_in_hundreds = (int)(the_rest.size() - 56*NumGroups - 24*NumBoundingBoxes -4*NumVertices );
+//
+//    s << "decimal\thex\n";
+//    for(int i=0;i<bytes_in_hundreds;i++)
+//    {
+//        s<< (int) the_rest[i] << "\t"<< wxString::Format("%#02x", the_rest[i]) <<"\n";
+//    }
+//    the_rest.clear();
+//
+//    wxFileOffset sought = myfile.Seek(t+bytes_in_hundreds);
+//    if(sought==wxInvalidOffset)
+//    {
+//        //We should never get here, but just in case:
+//        SetStatusText("Unable to read rest of file");
+//        myfile.Close();
+//        return;
+//    }
+//
+//    pgp = AddCategory( "Hundreds", &myfile );
+//    DataGrid->Append( new npDialogProperty("Bytes",wxPG_LABEL,wxString::Format("%d bytes...",bytes_in_hundreds),s) );
+//    DataGrid->Collapse(pgp);
+//
+//    pgp = AddCategory( "Groups", &myfile );
+//    for(int i=0;i<NumGroups;i++)
+//    {
+//        misc = AddSubCat(pgp,"group",i);
+//        AddInt( misc, "PrimitiveType", ReadInt(&myfile) );
+//        AddInt( misc, "PolygonStartIndex", ReadInt(&myfile) );
+//        AddInt( misc, "NumPolygons", ReadInt(&myfile) );
+//        AddInt( misc, "VerticesStartIndex", ReadInt(&myfile) );
+//        AddInt( misc, "NumVertices", ReadInt(&myfile) );
+//        AddInt( misc, "EdgeStartIndex", ReadInt(&myfile) );
+//        AddInt( misc, "NumEdges", ReadInt(&myfile) );
+//        AddInt( misc, "u1", ReadInt(&myfile) );
+//        AddInt( misc, "u2", ReadInt(&myfile) );
+//        AddInt( misc, "u3", ReadInt(&myfile) );
+//        AddInt( misc, "u4", ReadInt(&myfile) );
+//        AddInt( misc, "TexCoordStartIndex", ReadInt(&myfile) );
+//        AddInt( misc, "AreTexturesUsed", ReadInt(&myfile) );
+//        AddInt( misc, "TextureNumber", ReadInt(&myfile) );
+//    }
+//    DataGrid->Collapse(pgp);
+//
+//    pgp = AddCategory( "Bounding boxes", &myfile );
+//    for(int i=0;i<NumBoundingBoxes;i++)
+//    {
+//        misc = AddSubCat(pgp,"box",i);
+//        AddFloat(misc,"max x",ReadFloat(&myfile));
+//        AddFloat(misc,"max y",ReadFloat(&myfile));
+//        AddFloat(misc,"max z",ReadFloat(&myfile));
+//        AddFloat(misc,"min x",ReadFloat(&myfile));
+//        AddFloat(misc,"min y",ReadFloat(&myfile));
+//        AddFloat(misc,"min z",ReadFloat(&myfile));
+//    }
+//    DataGrid->Collapse(pgp);
+//
+//    pgp = AddCategory( "Normal index table", &myfile );
+//    for(int i=0;i<NumVertices ;i++)
+//    {
+//        AddInt(pgp,wxString::Format("vertex %d",i),ReadInt(&myfile));
+//    }
+//    DataGrid->Collapse(pgp);
 
     myfile.Close();
     SetStatusText("File Opened",1);
